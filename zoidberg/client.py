@@ -97,6 +97,8 @@ class Client():
             return True
         return False
 
+    # rewrite this to use rtm
+    # https://slackapi.github.io/python-slackclient/real_time_messaging.html#sending-messages-via-the-rtm-api
     def post_message(self, channel, response):
         self.SLACKCLIENT.api_call(
             "chat.postMessage",
