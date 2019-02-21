@@ -1,3 +1,4 @@
+import os
 from zoidberg.client import Client
 
 if __name__ == "__main__":
