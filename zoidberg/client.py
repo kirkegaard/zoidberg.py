@@ -54,8 +54,6 @@ class Client():
             if not 'type' in event:
                 break
 
-            print(event['type'])
-
             if event['type'] == 'hello':
                 self.on_connected(event)
 
