@@ -3,8 +3,6 @@ from importlib import import_module
 import re
 import time
 
-from sanic import Sanic
-
 from .message import Message
 
 
@@ -25,8 +23,6 @@ class Client():
     def __init__(self, OAUTH_TOKEN):
         self.OAUTH_TOKEN = OAUTH_TOKEN
         self.SLACKCLIENT = SlackClient(OAUTH_TOKEN)
-        self.SANIC = Sanic()
-        self.SANIC.run(host='127.0.0.1', port=5000)
 
     def load_plugins(self, plugins):
         for plugin in plugins:
