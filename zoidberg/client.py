@@ -2,8 +2,11 @@ from slackclient import SlackClient
 from importlib import import_module
 import re
 import time
+import logging
 
-from .message import Message
+from .context import Context
+
+logging.basicConfig(format='%(asctime)s - %(message)s', level=logging.INFO)
 
 
 class Client():
@@ -21,6 +24,7 @@ class Client():
     TRIGGER = '!'
 
     def __init__(self, OAUTH_TOKEN):
+        logging.info('Initializing zoidberg')
         self.OAUTH_TOKEN = OAUTH_TOKEN
         self.SLACKCLIENT = SlackClient(OAUTH_TOKEN)
 
@@ -31,11 +35,12 @@ class Client():
     def load_plugin(self, name):
         try:
             plugin = import_module('.' + name, package=self.PLUGIN_PATH)
+            logging.info('Loading plugin: %s', plugin.__name__)
             self.PLUGINS.append(plugin.setup(self))
         except Exception as e:
             raise e
 
-    # We should probably convert this to an async loop if we want to work with
+    # We should probably convert this to an async loop if we wanna have
     # sockets for working with like slash commands
     def connect(self):
         if self.SLACKCLIENT.rtm_connect(with_team_state=False):
@@ -48,69 +53,49 @@ class Client():
 
     def handle_events(self, events):
         for event in events:
+            logging.debug('Received event: %s', event)
+
             if 'subtype' in event:
                 break
 
             if not 'type' in event:
                 break
 
-            if event['type'] == 'hello':
-                self.on_connected(event)
+            if hasattr(self, 'on_%s' % event['type']):
+                getattr(self, 'on_%s' % event['type'])(event)
 
-            if event['type'] == 'message':
-                self.on_message(event)
-                # if self.is_mention(event):
-                #     self.on_mention(event)
+            context = Context(self, event)
 
-            if event['type'] == 'user_typing':
-                self.on_user_typing(event)
+            for plugin in self.PLUGINS:
 
-            if event['type'] == 'user_change':
-                self.on_user_change(event)
+                if hasattr(plugin, 'on_%s' % event['type']):
+                    getattr(plugin, 'on_%s' % event['type'])(context)
 
-            if event['type'] == 'channel_joined':
-                self.on_channel_joined(event)
+                if 'text' in event:
+                    if event['text'].startswith(self.TRIGGER):
+                        args = event['text'].split(' ')
+                        trigger = args[0][1:]
+                        if trigger in dir(plugin):
+                            getattr(plugin, trigger)(context, *args[1:])
+                            break
 
-            if event['type'] == 'channel_left':
-                self.on_channel_left(event)
-
-            if event['type'] == 'channel_created':
-                self.on_channel_created(event)
-
-            if event['type'] == 'channel_deleted':
-                self.on_channel_deleted(event)
-
-            if event['type'] == 'member_joined_channel':
-                self.on_member_joined_channel(event)
-
-            if event['type'] == 'member_left_channel':
-                self.on_member_left_channel(event)
-
-            if event['type'] == 'bot_added':
-                pass
-
-            if event['type'] == 'commands_changed':
-                pass
-
-            if event['type'] == 'apps_changed':
-                pass
+    def on_hello(self, event):
+        self.on_connected(event)
 
     def on_connected(self, event):
         pass
 
     def on_message(self, event):
-        for plugin in self.PLUGINS:
-            message = Message(event, self)
+        pass
 
-            if event['text'].startswith(self.TRIGGER):
-                args = event['text'].split(' ')
-                trigger = args[0][1:]
-                if trigger in dir(plugin):
-                    getattr(plugin, trigger)(message, *args[1:])
-                    break
+    def on_bot_added(self, event):
+        pass
 
-            if 'on_message' in dir(plugin):
-                plugin.on_message(message)
+    def on_commands_changed(self, event):
+        pass
+
+    def on_apps_changed(self, event):
+        pass
 
     def on_member_joined_channel(self, event):
         pass
@@ -145,8 +130,5 @@ class Client():
             return True
         return False
 
-    def post_message(self, channel, response):
-        self.SLACKCLIENT.rtm_send_message(
-            channel=channel,
-            message=response
-        )
+    # def post_message(self, **kwargs):
+    #     self.SLACKCLIENT.rtm_send_message(kwargs)

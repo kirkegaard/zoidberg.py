@@ -1,5 +1,6 @@
 from cobe.brain import Brain
 import re
+import logging
 
 brain = Brain("tmp/zoidberg.brain")
 
@@ -10,25 +11,28 @@ class Brain():
         self.bot = bot
 
     def on_message(self, context):
-        if context.author == self.bot.ID or context.content.startswith('!'):
+        content = context.Message.content
+        author = context.Author.id
+
+        if author == self.bot.ID or content.startswith('!'):
             return
 
         reply = None
-        content = re.sub(r'<@.*?>', '', context.content).strip()
+        question = re.sub(r'<@.*?>', '', content).strip()
 
-        if context.content.startswith('<@%s>' % self.bot.ID):
+        if content.startswith('<@%s>' % self.bot.ID):
             while reply == None:
                 try:
-                    reply = brain.reply(content)
-                    context.send(f'<@{context.author}> {reply}')
+                    reply = brain.reply(question)
+                    context.send(f'<@{author}> {reply}')
                 except AbortException:
                     return False
                 except RetryException:
                     reply = None
 
         if len(content) >= 4:
-            print('Learning from: {}'.format(content))
-            brain.learn(content)
+            logging.info('Learning from: %s', question)
+            brain.learn(question)
 
 
 def setup(bot):
