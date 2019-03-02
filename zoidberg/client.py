@@ -1,6 +1,7 @@
 from slackclient import SlackClient
-from importlib import import_module
+from importlib import import_module, reload
 import re
+import sys
 import time
 import logging
 
@@ -19,7 +20,7 @@ class Client():
     MENTION_REGEX = "^<@(|[WU].+?)>(.*)"
 
     PLUGIN_PATH = 'zoidberg.plugins'
-    PLUGINS = []
+    PLUGINS = {}
 
     TRIGGER = '!'
 
@@ -33,12 +34,31 @@ class Client():
             self.load_plugin(plugin)
 
     def load_plugin(self, name):
+        if name in self.PLUGINS:
+            logging.info('Plugin already loaded: %s', name)
+            return False
+
         try:
-            plugin = import_module('.' + name, package=self.PLUGIN_PATH)
-            logging.info('Loading plugin: %s', plugin.__name__)
-            self.PLUGINS.append(plugin.setup(self))
+            module = '%s.%s' % (self.PLUGIN_PATH, name)
+
+            if module not in sys.modules:
+                plugin = import_module('.' + name, package=self.PLUGIN_PATH)
+            else:
+                plugin = reload(sys.modules[module])
+
+            logging.info('Loading plugin: %s', name)
+            self.PLUGINS[name] = plugin.setup(self)
         except Exception as e:
             raise e
+
+    def reload_plugin(self, name):
+        logging.info('Reloading plugin: %s', name)
+        self.unload_plugin(name)
+        self.load_plugin(name)
+
+    def unload_plugin(self, name):
+        logging.info('Unloading plugin: %s', name)
+        self.PLUGINS.pop(name, None)
 
     # We should probably convert this to an async loop if we wanna have
     # sockets for working with like slash commands
@@ -66,8 +86,7 @@ class Client():
 
             context = Context(self, event)
 
-            for plugin in self.PLUGINS:
-
+            for name, plugin in self.PLUGINS.items():
                 if hasattr(plugin, 'on_%s' % event['type']):
                     getattr(plugin, 'on_%s' % event['type'])(context)
 
