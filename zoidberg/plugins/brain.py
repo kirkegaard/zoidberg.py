@@ -24,6 +24,7 @@ class Brain():
             while reply == None:
                 try:
                     reply = brain.reply(question)
+                    reply = re.sub(r'<@.*?>', '', reply).strip()
                     context.send(f'<@{author}> {reply}')
                 except AbortException:
                     return False
