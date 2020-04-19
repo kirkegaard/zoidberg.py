@@ -1,3 +1,4 @@
-slackclient
+slackclient==2.5.0
 requests
+sanic
 git+https://github.com/chauffer/cobe@master

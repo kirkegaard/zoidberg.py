@@ -2,21 +2,21 @@ import sqlite3
 import logging
 
 
-class Status():
+class Status:
 
-    SCHEMA = '''CREATE TABLE IF NOT EXISTS status (
+    SCHEMA = """CREATE TABLE IF NOT EXISTS status (
         id INTEGER PRIMARY KEY AUTOINCREMENT,
         user_id CHAR(16),
         real_name TEXT,
         status_text TEXT,
         status_emoji TEXT,
         status_expiration INTEGER
-    )'''
+    )"""
 
     def __init__(self, bot):
         self.bot = bot
 
-        db = sqlite3.connect('tmp/status.sqlite')
+        db = sqlite3.connect("tmp/status.sqlite")
         self.db = db
 
         # Initialize the database
@@ -27,21 +27,25 @@ class Status():
     def on_user_change(self, context):
         user = context.Author
         data = {
-            'user_id': user.id,
-            'real_name': user.real_name,
-            'status_text': user.status.status_text,
-            'status_emoji': user.status.status_emoji,
-            'status_expiration': user.status.status_expiration
+            "user_id": user.id,
+            "real_name": user.real_name,
+            "status_text": user.status.status_text,
+            "status_emoji": user.status.status_emoji,
+            "status_expiration": user.status.status_expiration,
         }
 
         cursor = self.db.cursor()
 
-        cursor.execute('''SELECT user_id
+        cursor.execute(
+            """SELECT user_id
             FROM status
-            WHERE user_id = :user_id''', data)
+            WHERE user_id = :user_id""",
+            data,
+        )
 
         if cursor.fetchone() is None:
-            cursor.execute('''INSERT INTO status (
+            cursor.execute(
+                """INSERT INTO status (
                 user_id,
                 real_name,
                 status_text,
@@ -53,16 +57,21 @@ class Status():
                 :status_text,
                 :status_emoji,
                 :status_expiration
-            )''', data)
+            )""",
+                data,
+            )
         else:
-            cursor.execute('''UPDATE status SET
+            cursor.execute(
+                """UPDATE status SET
                 real_name = :real_name,
                 status_text = :status_text,
                 status_emoji = :status_emoji,
                 status_expiration = :status_expiration
-            WHERE user_id = :user_id''', data)
+            WHERE user_id = :user_id""",
+                data,
+            )
 
-        logging.info('Updating status: %s', data)
+        logging.info("Updating status: %s", data)
 
         self.db.commit()
 

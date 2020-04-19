@@ -3,36 +3,38 @@ import re
 import logging
 
 brain = Brain("tmp/zoidberg.brain")
+logger = logging.getLogger(__name__)
 
 
-class Brain():
-
+class Brain:
     def __init__(self, bot):
         self.bot = bot
 
-    def on_message(self, context):
+    def on_mention(self, context):
         content = context.Message.content
         author = context.Author.id
 
-        if author == self.bot.ID or content.startswith('!'):
+        reply = None
+        question = re.sub(r"<@.*?>", "", content).strip()
+        while reply == None:
+            try:
+                reply = brain.reply(question)
+                reply = re.sub(r"<@.*?>", "", reply).strip()
+                context.send(f"<@{author}> {reply}")
+            except AbortException:
+                return False
+            except RetryException:
+                reply = None
+
+    def on_message(self, context):
+        content = context.Message.content
+
+        if content.startswith("!"):
             return
 
-        reply = None
-        question = re.sub(r'<@.*?>', '', content).strip()
-
-        if content.startswith('<@%s>' % self.bot.ID):
-            while reply == None:
-                try:
-                    reply = brain.reply(question)
-                    reply = re.sub(r'<@.*?>', '', reply).strip()
-                    context.send(f'<@{author}> {reply}')
-                except AbortException:
-                    return False
-                except RetryException:
-                    reply = None
-
+        question = re.sub(r"<@.*?>", "", content).strip()
         if len(content) >= 4:
-            logging.info('Learning from: %s', question)
+            logger.info("Learning from: %s", question)
             brain.learn(question)
 
 

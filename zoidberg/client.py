@@ -1,4 +1,5 @@
-from slackclient import SlackClient
+from slack import WebClient
+from slack.errors import SlackApiError
 from importlib import import_module, reload
 import re
 import sys
@@ -7,27 +8,26 @@ import logging
 
 from .context import Context
 
-logging.basicConfig(format='%(asctime)s - %(message)s', level=logging.INFO)
+logging.basicConfig(
+    format="[%(asctime)s] [%(name)s] [%(levelname)s] %(message)s", level=logging.INFO
+)
+logger = logging.getLogger(__name__)
 
 
-class Client():
+class Client:
 
     SLACKCLIENT = None
     OAUTH_TOKEN = None
-    ID = None
-    READ_DELAY = 0.5
 
-    MENTION_REGEX = "^<@(|[WU].+?)>(.*)"
-
-    PLUGIN_PATH = 'zoidberg.plugins'
+    PLUGIN_PATH = "zoidberg.plugins"
     PLUGINS = {}
 
-    TRIGGER = '!'
+    TRIGGER = "!"
 
     def __init__(self, OAUTH_TOKEN):
-        logging.info('Initializing zoidberg')
+        logger.info("Starting Zoidberg")
         self.OAUTH_TOKEN = OAUTH_TOKEN
-        self.SLACKCLIENT = SlackClient(OAUTH_TOKEN)
+        self.SLACKCLIENT = WebClient(token=OAUTH_TOKEN, run_async=True)
 
     def load_plugins(self, plugins):
         for plugin in plugins:
@@ -35,68 +35,50 @@ class Client():
 
     def load_plugin(self, name):
         if name in self.PLUGINS:
-            logging.info('Plugin already loaded: %s', name)
+            logger.info("Plugin already loaded [%s]", name)
             return False
 
         try:
-            module = '%s.%s' % (self.PLUGIN_PATH, name)
+            module = "%s.%s" % (self.PLUGIN_PATH, name)
 
             if module not in sys.modules:
-                plugin = import_module('.' + name, package=self.PLUGIN_PATH)
+                plugin = import_module("." + name, package=self.PLUGIN_PATH)
             else:
                 plugin = reload(sys.modules[module])
 
-            logging.info('Loading plugin: %s', name)
+            logger.info("Loading plugin [%s]", name)
             self.PLUGINS[name] = plugin.setup(self)
         except Exception as e:
             raise e
 
     def reload_plugin(self, name):
-        logging.info('Reloading plugin: %s', name)
+        logger.info("Reloading plugin [%s]", name)
         self.unload_plugin(name)
         self.load_plugin(name)
 
     def unload_plugin(self, name):
-        logging.info('Unloading plugin: %s', name)
+        logger.info("Unloading plugin [%s]", name)
         self.PLUGINS.pop(name, None)
 
-    # We should probably convert this to an async loop if we wanna have
-    # sockets for working with like slash commands
-    def connect(self):
-        if self.SLACKCLIENT.rtm_connect(with_team_state=False):
-            self.ID = self.SLACKCLIENT.api_call("auth.test")["user_id"]
-            while True:
-                self.handle_events(self.SLACKCLIENT.rtm_read())
-                time.sleep(self.READ_DELAY)
-        else:
-            print('Failed to connect to RTM')
+    async def handle_event(self, payload):
+        event = payload.get("event")
 
-    def handle_events(self, events):
-        for event in events:
-            logging.debug('Received event: %s', event)
+        if hasattr(self, "on_%s" % event["type"]):
+            getattr(self, "on_%s" % event["type"])(event)
 
-            if 'subtype' in event:
-                break
+        context = Context(self, event)
 
-            if not 'type' in event:
-                break
+        for name, plugin in self.PLUGINS.items():
+            event_type = event["type"].replace("app_", "")
+            if hasattr(plugin, "on_%s" % event_type):
+                getattr(plugin, "on_%s" % event_type)(context)
 
-            if hasattr(self, 'on_%s' % event['type']):
-                getattr(self, 'on_%s' % event['type'])(event)
-
-            context = Context(self, event)
-
-            for name, plugin in self.PLUGINS.items():
-                if hasattr(plugin, 'on_%s' % event['type']):
-                    getattr(plugin, 'on_%s' % event['type'])(context)
-
-                if 'text' in event:
-                    if event['text'].startswith(self.TRIGGER):
-                        args = event['text'].split(' ')
-                        trigger = args[0][1:]
-                        if trigger in dir(plugin):
-                            getattr(plugin, trigger)(context, *args[1:])
-                            break
+            if "text" in event:
+                if event["text"].startswith(self.TRIGGER):
+                    args = event["text"].split(" ")
+                    trigger = args[0][1:]
+                    if trigger in dir(plugin):
+                        getattr(plugin, trigger)(context, *args[1:])
 
     def on_hello(self, event):
         self.on_connected(event)
@@ -105,6 +87,9 @@ class Client():
         pass
 
     def on_message(self, event):
+        pass
+
+    def on_mention(self, event):
         pass
 
     def on_bot_added(self, event):
@@ -142,12 +127,3 @@ class Client():
 
     def on_mention(self, event):
         pass
-
-    def is_mention(self, event):
-        matches = re.search(self.MENTION_REGEX, event['text'])
-        if matches:
-            return True
-        return False
-
-    # def post_message(self, **kwargs):
-    #     self.SLACKCLIENT.rtm_send_message(kwargs)
