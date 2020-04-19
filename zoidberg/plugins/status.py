@@ -1,6 +1,8 @@
 import sqlite3
 import logging
 
+logger = logging.getLogger(__name__)
+
 
 class Status:
 
@@ -71,7 +73,7 @@ class Status:
                 data,
             )
 
-        logging.info("Updating status: %s", data)
+        logger.info("Updating status: %s", data)
 
         self.db.commit()
 

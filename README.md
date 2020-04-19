@@ -6,10 +6,17 @@ This is [nibbler](https://github.com/kirkegaard/nibbler.py), but for Slack.
 To Do
 -----
 
--   Convert everything
--   Do more things
--   Fix structure things
--   Create real context
+- Move plugins to async await
+- Separate sanic stuff from `bot.py`
+- Contexts should probably also make more sense
+- Support `.env` file
+- Make plugins aware of teams
+
+
+Notes
+-----
+
+Cobe cant run on anything newer than python 3.6.8 :(
 
 License
 -------
